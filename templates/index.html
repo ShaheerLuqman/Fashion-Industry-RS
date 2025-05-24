@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fashion Recommender</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .drop-zone {
+            border: 2px dashed #4a5568;
+            transition: all 0.3s ease;
+        }
+        .drop-zone:hover {
+            border-color: #2d3748;
+            background-color: #f7fafc;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold text-center mb-8 text-gray-800">Fashion Recommender</h1>
+        
+        <!-- Upload Section -->
+        <div class="max-w-xl mx-auto bg-white rounded-lg shadow-md p-6 mb-8">
+            <div class="drop-zone rounded-lg p-8 text-center cursor-pointer" id="dropZone">
+                <input type="file" id="fileInput" class="hidden" accept="image/*">
+                <div class="text-gray-600">
+                    <svg class="mx-auto h-12 w-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <p class="text-lg">Drag and drop an image here or click to select</p>
+                    <p class="text-sm text-gray-500 mt-2">Supported formats: JPG, PNG</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Queried Image Section -->
+        <div id="queriedImage" class="hidden max-w-xl mx-auto mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">Your Image</h2>
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <div class="aspect-w-3 aspect-h-4">
+                    <img id="queriedImageElement" src="" alt="Queried image" class="w-full h-full object-cover">
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="hidden">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">Recommended Items</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="resultsGrid">
+                <!-- Results will be inserted here -->
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loading" class="hidden">
+            <div class="flex justify-center items-center">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const results = document.getElementById('results');
+        const resultsGrid = document.getElementById('resultsGrid');
+        const loading = document.getElementById('loading');
+
+        // Handle drag and drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-blue-500');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-blue-500');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-blue-500');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleFile(file);
+            }
+        });
+
+        // Handle click to upload
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+
+        function handleFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Show loading spinner
+            loading.classList.remove('hidden');
+            results.classList.add('hidden');
+            
+            // Display the queried image
+            const queriedImage = document.getElementById('queriedImage');
+            const queriedImageElement = document.getElementById('queriedImageElement');
+            queriedImageElement.src = URL.createObjectURL(file);
+            queriedImage.classList.remove('hidden');
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'An error occurred while processing the image.');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                displayResults(data.results);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert(error.message || 'An error occurred while processing the image.');
+            })
+            .finally(() => {
+                loading.classList.add('hidden');
+            });
+        }
+
+        function displayResults(resultData) {
+            resultsGrid.innerHTML = '';
+            resultData.forEach(result => {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-lg shadow-md overflow-hidden';
+                card.innerHTML = `
+                    <div class="aspect-w-3 aspect-h-4">
+                        <img src="${result.image_path}" alt="Recommended item" class="w-full h-full object-cover">
+                    </div>
+                    <div class="p-4">
+                        <p class="text-sm text-gray-600">ID: ${result.image_id}</p>
+                        <p class="text-sm text-gray-600">Similarity: ${(result.similarity * 100).toFixed(2)}%</p>
+                    </div>
+                `;
+                resultsGrid.appendChild(card);
+            });
+            results.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html> 
